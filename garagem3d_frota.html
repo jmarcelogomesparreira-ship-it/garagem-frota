@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garagem 3D — Frota Coruripe</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; font-family: 'Segoe UI', sans-serif; overflow: hidden; color: #e0e0e0; }
+  #container { display: flex; width: 100vw; height: 100vh; }
+
+  #sidebar {
+    width: 290px; min-width: 290px; height: 100vh;
+    background: #161b22; border-right: 1px solid #30363d;
+    display: flex; flex-direction: column; overflow: hidden; z-index: 10;
+  }
+  #sidebar-header {
+    padding: 12px 14px 8px;
+    background: linear-gradient(135deg, #1a2332 0%, #0f1923 100%);
+    border-bottom: 1px solid #30363d; flex-shrink: 0;
+  }
+  #sidebar-header h1 { font-size: 12px; font-weight: 700; color: #58a6ff; letter-spacing: 1px; text-transform: uppercase; }
+  #sidebar-header p { font-size: 9px; color: #6e7681; margin-top: 2px; }
+
+  /* TABS */
+  #tabs { display: flex; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+  .tab { flex: 1; padding: 7px 4px; font-size: 10px; text-align: center; cursor: pointer; color: #6e7681; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; background: rgba(88,166,255,0.05); }
+  .tab:hover:not(.active) { color: #c9d1d9; }
+
+  .tab-panel { display: none; flex: 1; overflow-y: auto; flex-direction: column; }
+  .tab-panel.active { display: flex; }
+
+  /* KPIs */
+  #kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 8px 10px; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+  .kpi { background: #0d1117; border-radius: 6px; padding: 7px 9px; border: 1px solid #30363d; }
+  .kpi-val { font-size: 17px; font-weight: 700; line-height: 1; }
+  .kpi-label { font-size: 8px; color: #6e7681; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .kpi.ok .kpi-val { color: #3fb950; }
+  .kpi.warn .kpi-val { color: #d29922; }
+  .kpi.crit .kpi-val { color: #f85149; }
+  .kpi.total .kpi-val { color: #58a6ff; }
+  .kpi.troca .kpi-val { color: #a371f7; }
+
+  /* KPI row de 3 */
+  .kpi-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 0 10px 8px; flex-shrink: 0; border-bottom: 1px solid #30363d; }
+
+  /* FILTROS */
+  .filters-wrap { padding: 8px 10px; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+  .filters-wrap label { font-size: 8px; color: #6e7681; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px; margin-top: 6px; }
+  .filters-wrap label:first-child { margin-top: 0; }
+  .filters-wrap select, .filters-wrap input {
+    width: 100%; background: #0d1117; border: 1px solid #30363d; color: #e0e0e0;
+    border-radius: 4px; padding: 4px 7px; font-size: 11px; outline: none;
+  }
+  .filters-wrap select:focus, .filters-wrap input:focus { border-color: #58a6ff; }
+
+  /* LEGENDA */
+  .legenda-wrap { padding: 8px 10px; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+  .legenda-wrap h3 { font-size: 8px; color: #6e7681; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .leg-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; font-size: 10px; color: #c9d1d9; }
+  .leg-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+  /* DETALHE */
+  .detail-wrap { flex: 1; overflow-y: auto; padding: 8px 10px; }
+  .detail-wrap h3 { font-size: 8px; color: #6e7681; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .detail-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #21262d; align-items: center; }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-key { color: #8b949e; font-size: 10px; }
+  .detail-val { color: #e0e0e0; font-weight: 600; font-size: 10px; text-align: right; max-width: 150px; word-break: break-word; }
+  .badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .badge-ok { background: #1a3a1a; color: #3fb950; border: 1px solid #3fb950; }
+  .badge-warn { background: #3a2a00; color: #d29922; border: 1px solid #d29922; }
+  .badge-crit { background: #3a0f0f; color: #f85149; border: 1px solid #f85149; }
+  .badge-disp { background: #0a1f3a; color: #58a6ff; border: 1px solid #58a6ff; }
+  .badge-troca { background: #2a1a4a; color: #a371f7; border: 1px solid #a371f7; }
+
+  /* BARRA KM */
+  .km-bar-wrap { margin-top: 6px; }
+  .km-bar-label { display: flex; justify-content: space-between; font-size: 9px; color: #6e7681; margin-bottom: 3px; }
+  .km-bar-bg { width: 100%; height: 8px; background: #21262d; border-radius: 4px; overflow: hidden; }
+  .km-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+
+  .pend-list { margin-top: 4px; }
+  .pend-item { display: flex; align-items: center; justify-content: space-between; padding: 3px 0; font-size: 10px; border-bottom: 1px solid #21262d; }
+  .pend-item:last-child { border-bottom: none; }
+  .pend-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-right: 5px; }
+
+  /* LISTA TROCA */
+  .troca-item { padding: 6px 8px; background: #0d1117; border-radius: 5px; border: 1px solid #30363d; margin-bottom: 5px; font-size: 10px; }
+  .troca-item .t-placa { font-weight: 700; color: #a371f7; }
+  .troca-item .t-info { color: #8b949e; margin-top: 2px; }
+  .troca-item .t-dias { font-weight: 700; }
+
+  /* CANVAS */
+  #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
+  #canvas-wrap canvas { display: block; }
+
+  #tooltip {
+    position: absolute; pointer-events: none; display: none;
+    background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+    padding: 8px 12px; font-size: 11px; color: #e0e0e0;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5); z-index: 100; max-width: 210px;
+  }
+  #tooltip .tt-title { font-weight: 700; color: #58a6ff; margin-bottom: 4px; font-size: 12px; }
+  #tooltip .tt-row { color: #8b949e; margin-bottom: 2px; font-size: 10px; }
+  #tooltip .tt-row span { color: #e0e0e0; }
+
+  #controls3d { position: absolute; bottom: 12px; right: 12px; display: flex; flex-direction: column; gap: 4px; z-index: 50; }
+  .btn3d { background: #161b22; border: 1px solid #30363d; color: #c9d1d9; border-radius: 5px; width: 30px; height: 30px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+  .btn3d:hover { background: #21262d; color: #fff; }
+
+  #view-label { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(22,27,34,0.85); border: 1px solid #30363d; border-radius: 4px; padding: 3px 10px; font-size: 10px; color: #6e7681; pointer-events: none; z-index: 50; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #0d1117; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="container">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h1>🚗 Frota Coruripe</h1>
+      <p>Garagem 3D Inteligente · Gestão de Veículos</p>
+    </div>
+
+    <!-- TABS -->
+    <div id="tabs">
+      <div class="tab active" onclick="mudarTab('visao')">Visão</div>
+      <div class="tab" onclick="mudarTab('filtros')">Filtros</div>
+      <div class="tab" onclick="mudarTab('trocas')">Trocas</div>
+      <div class="tab" onclick="mudarTab('detalhe')">Detalhe</div>
+    </div>
+
+    <!-- TAB: VISÃO GERAL -->
+    <div id="tab-visao" class="tab-panel active">
+      <div id="kpis">
+        <div class="kpi total"><div class="kpi-val" id="kpi-total">162</div><div class="kpi-label">Total Frota</div></div>
+        <div class="kpi ok"><div class="kpi-val" id="kpi-ok">0</div><div class="kpi-label">Ok</div></div>
+        <div class="kpi warn"><div class="kpi-val" id="kpi-warn">0</div><div class="kpi-label">A Vencer</div></div>
+        <div class="kpi crit"><div class="kpi-val" id="kpi-crit">0</div><div class="kpi-label">Pendentes</div></div>
+      </div>
+      <div class="kpi-row3">
+        <div class="kpi troca"><div class="kpi-val" id="kpi-troca">0</div><div class="kpi-label">Trocas ≤30d</div></div>
+        <div class="kpi warn"><div class="kpi-val" id="kpi-km90">0</div><div class="kpi-label">KM &gt;90%</div></div>
+        <div class="kpi crit"><div class="kpi-val" id="kpi-km100">0</div><div class="kpi-label">KM Esgotado</div></div>
+      </div>
+      <div class="legenda-wrap">
+        <h3>Legenda — Status Geral</h3>
+        <div class="leg-item"><div class="leg-dot" style="background:#3fb950"></div>Ok — sem pendências</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#d29922"></div>A Vencer — atenção</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#f85149"></div>Pendente — ação necessária</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#58a6ff"></div>Disponível — sem alocação</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#a371f7"></div>Troca próxima ≤30 dias</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#ff8c00"></div>KM contrato &gt;90% usado</div>
+      </div>
+      <div style="padding:8px 10px;font-size:9px;color:#6e7681;line-height:1.5;border-top:1px solid #30363d;">
+        Clique num veículo para ver detalhes completos.<br>
+        Use a aba <strong style="color:#c9d1d9">Filtros</strong> para segmentar a frota.<br>
+        Aba <strong style="color:#c9d1d9">Trocas</strong> lista os veículos com troca iminente.
+      </div>
+    </div>
+
+    <!-- TAB: FILTROS -->
+    <div id="tab-filtros" class="tab-panel">
+      <div class="filters-wrap">
+        <label>Unidade / Frota</label>
+        <select id="f-unidade" onchange="aplicarFiltros()">
+          <option value="">Todas as unidades</option>
+        </select>
+
+        <label>Área</label>
+        <select id="f-area" onchange="onAreaChange()">
+          <option value="">Todas as áreas</option>
+        </select>
+
+        <label>Subárea</label>
+        <select id="f-subarea" onchange="aplicarFiltros()">
+          <option value="">Todas as subáreas</option>
+        </select>
+
+        <label>Locadora</label>
+        <select id="f-locadora" onchange="aplicarFiltros()">
+          <option value="">Todas as locadoras</option>
+        </select>
+
+        <label>Modelo</label>
+        <select id="f-modelo" onchange="aplicarFiltros()">
+          <option value="">Todos os modelos</option>
+        </select>
+
+        <label>Status</label>
+        <select id="f-status" onchange="aplicarFiltros()">
+          <option value="">Todos os status</option>
+          <option value="ok">✅ Ok</option>
+          <option value="avencer">⚠️ A Vencer</option>
+          <option value="pendente">🔴 Pendente</option>
+          <option value="disponivel">🔵 Disponível</option>
+        </select>
+
+        <label>Alerta KM</label>
+        <select id="f-km" onchange="aplicarFiltros()">
+          <option value="">Todos</option>
+          <option value="90">KM &gt; 90% usado</option>
+          <option value="100">KM esgotado / excedido</option>
+        </select>
+
+        <label>Troca próxima</label>
+        <select id="f-troca" onchange="aplicarFiltros()">
+          <option value="">Todas</option>
+          <option value="30">Troca em até 30 dias</option>
+          <option value="60">Troca em até 60 dias</option>
+        </select>
+
+        <label>Buscar placa</label>
+        <input type="text" id="f-busca" placeholder="Ex: ABX-1J34" oninput="aplicarFiltros()">
+
+        <div style="margin-top:10px;">
+          <button onclick="limparFiltros()" style="width:100%;background:#21262d;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;padding:5px;font-size:11px;cursor:pointer;">Limpar filtros</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: TROCAS -->
+    <div id="tab-trocas" class="tab-panel">
+      <div style="padding:8px 10px;border-bottom:1px solid #30363d;flex-shrink:0;">
+        <div style="font-size:9px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px;">Veículos com troca programada</div>
+      </div>
+      <div id="lista-trocas" style="padding:8px 10px;flex:1;overflow-y:auto;"></div>
+    </div>
+
+    <!-- TAB: DETALHE -->
+    <div id="tab-detalhe" class="tab-panel">
+      <div class="detail-wrap">
+        <h3>Veículo Selecionado</h3>
+        <div id="detail-content" style="color:#6e7681;font-size:11px;">Clique em um veículo no mapa 3D para ver os detalhes completos aqui.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS 3D -->
+  <div id="canvas-wrap">
+    <div id="view-label">Esq: rotacionar · Dir / Ctrl+Esq: mover · Scroll: zoom · Clique: detalhes</div>
+    <div id="tooltip"></div>
+    <div id="controls3d">
+      <button class="btn3d" onclick="resetCamera()" title="Reset">⌂</button>
+      <button class="btn3d" onclick="viewTop()" title="Cima">⊙</button>
+      <button class="btn3d" onclick="zoomIn()">+</button>
+      <button class="btn3d" onclick="zoomOut()">−</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ============================================================
+// CONFIGURAÇÃO GLOBAL — EDITE AQUI OU CONECTE VIA POWER BI
+// ============================================================
+
+var TIPOS_PENDENCIA = ['Vistoria','Checklist','Rastreador','Manutenção','Lavagem','Abastecimento'];
+
+var LOCADORAS = ['VelozCar','MoveFrota','AutoPrime','FleetBR'];
+
+var UNIDADES = ['Iturama','Coruripe','Unidade 3','Unidade 4'];
+
+var ESTRUTURA = {
+  'Agrícola':       ['Gerência Agrícola','Coordenação','Fornecedores','Cultivo','Colheita','Irrigação'],
+  'Industrial':     ['Gerência Industrial','Destilaria','Fábrica de Açúcar','Caldeiraria','Elétrica'],
+  'Administrativo': ['Diretoria','RH','Financeiro','TI','Compras'],
+  'Manutenção':     ['Mecânica','Borracharia','Frotas','Almoxarifado']
+};
+
+var MODELOS = ['Hilux SW4','Ranger XL','S10 LTZ','Strada CS','Duster Oroch','Frontier LE','Toro Freedom','Amarok V6','HR 2.5 CD','Saveiro Robust'];
+
+// ============================================================
+// GERAR FROTA FICTÍCIA
+// ============================================================
+function gerarFrota() {
+  var frota = [];
+  var placas = {};
+  var id = 1;
+  var dist = {'Agrícola':60,'Industrial':40,'Administrativo':32,'Manutenção':30};
+  var hoje = new Date();
+
+  Object.keys(ESTRUTURA).forEach(function(area) {
+    var total = dist[area] || 30;
+    var subareas = ESTRUTURA[area];
+    for (var i = 0; i < total; i++) {
+      var sub = subareas[i % subareas.length];
+      var locadora = LOCADORAS[Math.floor(Math.random()*LOCADORAS.length)];
+      var unidade = UNIDADES[Math.floor(Math.random()*UNIDADES.length)];
+      var placa = gerarPlaca(placas);
+      var modelo = MODELOS[Math.floor(Math.random()*MODELOS.length)];
+
+      // KM contrato
+      var km_contratado = [20000,30000,40000,50000][Math.floor(Math.random()*4)];
+      var pct = 0.3 + Math.random() * 0.8; // 30% a 110%
+      var km_rodado = Math.round(km_contratado * pct);
+      var km_saldo = km_contratado - km_rodado;
+      var pct_km = km_rodado / km_contratado;
+
+      // Data de troca (entre -10 e +180 dias)
+      var diasTroca = Math.floor(Math.random()*190) - 10;
+      var data_troca = new Date(hoje);
+      data_troca.setDate(data_troca.getDate() + diasTroca);
+
+      // Pendências
+      var pendencias = {};
+      TIPOS_PENDENCIA.forEach(function(t) {
+        var r = Math.random();
+        pendencias[t] = r < 0.1 ? 'vencido' : r < 0.22 ? 'avencer' : 'ok';
+      });
+
+      var statusGeral = calcStatus(pendencias);
+
+      frota.push({
+        id: id++, placa: placa, modelo: modelo,
+        area: area, subarea: sub, locadora: locadora, unidade: unidade,
+        pendencias: pendencias, status: statusGeral,
+        ano: 2018 + Math.floor(Math.random()*7),
+        km_contratado: km_contratado,
+        km_rodado: km_rodado,
+        km_saldo: km_saldo,
+        pct_km: pct_km,
+        data_troca: data_troca,
+        dias_troca: diasTroca
+      });
+    }
+  });
+  return frota;
+}
+
+function calcStatus(p) {
+  var venc = false, avec = false;
+  Object.keys(p).forEach(function(k){ if(p[k]==='vencido') venc=true; if(p[k]==='avencer') avec=true; });
+  return venc ? 'pendente' : avec ? 'avencer' : 'ok';
+}
+
+function gerarPlaca(usadas) {
+  var L = 'ABCDEFGHJKLMNPQRSTUVWXYZ', p;
+  do {
+    p=''; for(var i=0;i<3;i++) p+=L[Math.floor(Math.random()*L.length)];
+    p+='-'+Math.floor(Math.random()*10)+L[Math.floor(Math.random()*L.length)]+Math.floor(Math.random()*10)+Math.floor(Math.random()*10);
+  } while(usadas[p]);
+  usadas[p]=true; return p;
+}
+
+// cor visual levando em conta KM e troca também
+function corVisual(carro) {
+  if(carro.dias_troca <= 30) return 'troca';
+  if(carro.pct_km >= 1.0) return 'kmcrit';
+  if(carro.pct_km >= 0.9) return 'kmwarn';
+  return carro.status;
+}
+
+var CORES_HEX = {
+  ok:        0x238636,
+  avencer:   0x9e6a03,
+  pendente:  0xda3633,
+  disponivel:0x1158c7,
+  troca:     0x6e3db8,
+  kmwarn:    0xb86a00,
+  kmcrit:    0xcc2200
+};
+var CORES_EMIT = {
+  ok:        0x2ea043,
+  avencer:   0xd29922,
+  pendente:  0xf85149,
+  disponivel:0x58a6ff,
+  troca:     0xa371f7,
+  kmwarn:    0xff8c00,
+  kmcrit:    0xff3300
+};
+
+// ============================================================
+// INIT
+// ============================================================
+var FROTA = gerarFrota();
+var frotaFiltrada = FROTA.slice();
+
+// Popular filtros
+(function() {
+  function addOpts(sel, vals) {
+    vals.forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); });
+  }
+  addOpts(document.getElementById('f-unidade'), UNIDADES);
+  addOpts(document.getElementById('f-area'), Object.keys(ESTRUTURA));
+  var subs=[]; Object.values(ESTRUTURA).forEach(function(s){ s.forEach(function(x){ if(subs.indexOf(x)<0) subs.push(x); }); });
+  addOpts(document.getElementById('f-subarea'), subs.sort());
+  addOpts(document.getElementById('f-locadora'), LOCADORAS);
+  addOpts(document.getElementById('f-modelo'), MODELOS.slice().sort());
+})();
+
+function onAreaChange() {
+  var area = document.getElementById('f-area').value;
+  var sel = document.getElementById('f-subarea');
+  sel.innerHTML = '<option value="">Todas as subáreas</option>';
+  var subs = area ? ESTRUTURA[area] : Object.values(ESTRUTURA).reduce(function(a,b){return a.concat(b);},[]);
+  subs.forEach(function(s){ var o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o); });
+  aplicarFiltros();
+}
+
+function limparFiltros() {
+  ['f-unidade','f-area','f-subarea','f-locadora','f-modelo','f-status','f-km','f-troca'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('f-busca').value='';
+  document.getElementById('f-subarea').innerHTML='<option value="">Todas as subáreas</option>';
+  Object.values(ESTRUTURA).reduce(function(a,b){return a.concat(b);}).sort().forEach(function(s){
+    var o=document.createElement('option'); o.value=s; o.textContent=s; document.getElementById('f-subarea').appendChild(o);
+  });
+  aplicarFiltros();
+}
+
+// ============================================================
+// THREE.JS
+// ============================================================
+var scene, camera, renderer, raycaster, mouse;
+var carMeshes = [];
+var isDragging = false, prevMouse = {x:0,y:0};
+var camTheta = 0.7, camPhi = 1.05, camRadius = 130;
+var camTarget = new THREE.Vector3(0,0,0);
+var selectedGrupo = null;
+var clock = new THREE.Clock();
+var isPanning = false;
+
+function initScene() {
+  var wrap = document.getElementById('canvas-wrap');
+  var W = wrap.clientWidth, H = wrap.clientHeight;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0d1117);
+  scene.fog = new THREE.FogExp2(0x0d1117, 0.004);
+
+  camera = new THREE.PerspectiveCamera(45, W/H, 0.1, 800);
+  updateCam();
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  wrap.appendChild(renderer.domElement);
+
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  // Luzes
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  var dir = new THREE.DirectionalLight(0xffeedd, 0.9);
+  dir.position.set(50, 100, 60);
+  dir.castShadow = true;
+  dir.shadow.mapSize.width = 2048; dir.shadow.mapSize.height = 2048;
+  dir.shadow.camera.near = 1; dir.shadow.camera.far = 500;
+  dir.shadow.camera.left = -120; dir.shadow.camera.right = 120;
+  dir.shadow.camera.top = 120; dir.shadow.camera.bottom = -120;
+  scene.add(dir);
+  scene.add(new THREE.HemisphereLight(0x1a2a3a, 0x0a0f14, 0.5));
+
+  // Chão
+  var gnd = new THREE.Mesh(
+    new THREE.PlaneGeometry(500, 500),
+    new THREE.MeshLambertMaterial({ color: 0x0e1520 })
+  );
+  gnd.rotation.x = -Math.PI/2; gnd.receiveShadow = true;
+  scene.add(gnd);
+  var grid = new THREE.GridHelper(500, 80, 0x1c2333, 0x151b24);
+  grid.position.y = 0.05;
+  scene.add(grid);
+
+  construirGaragem();
+
+  renderer.domElement.addEventListener('mousedown', onMouseDown);
+  renderer.domElement.addEventListener('mousemove', onMove);
+  renderer.domElement.addEventListener('mouseup', onMouseUp);
+  renderer.domElement.addEventListener('click', onClick);
+  renderer.domElement.addEventListener('wheel', function(e){ camRadius=Math.max(15,Math.min(350,camRadius+e.deltaY*0.12)); updateCam(); });
+  renderer.domElement.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+  window.addEventListener('resize', function(){
+    var W2=wrap.clientWidth,H2=wrap.clientHeight;
+    camera.aspect=W2/H2; camera.updateProjectionMatrix(); renderer.setSize(W2,H2);
+  });
+
+  animate();
+}
+
+// ============================================================
+// GARAGEM DINÂMICA
+// ============================================================
+function construirGaragem() {
+  carMeshes.forEach(function(cm){ scene.remove(cm.mesh); });
+  carMeshes = [];
+  // remove setores antigos
+  var toRemove = [];
+  scene.children.forEach(function(c){ if(c.userData && c.userData.isSetor) toRemove.push(c); });
+  toRemove.forEach(function(c){ scene.remove(c); });
+
+  var areas = Object.keys(ESTRUTURA);
+  var cols = Math.ceil(Math.sqrt(areas.length));
+  var bW = 60, bD = 55;
+  var offX = -(cols*bW)/2 + bW/2;
+  var offZ = -(Math.ceil(areas.length/cols)*bD)/2 + bD/2;
+
+  areas.forEach(function(area, ai) {
+    var col = ai % cols;
+    var row = Math.floor(ai/cols);
+    var bx = offX + col*bW;
+    var bz = offZ + row*bD;
+
+    var corPlat = {
+      'Agrícola':0x112211,'Industrial':0x111122,
+      'Administrativo':0x221111,'Manutenção':0x112222
+    }[area] || 0x111820;
+
+    // Plataforma
+    var plat = new THREE.Mesh(
+      new THREE.BoxGeometry(bW-2, 0.25, bD-2),
+      new THREE.MeshLambertMaterial({ color: corPlat })
+    );
+    plat.position.set(bx, 0.12, bz); plat.receiveShadow=true; plat.userData.isSetor=true;
+    scene.add(plat);
+
+    // Bordas iluminadas
+    var edgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(bW-2, 0.26, bD-2));
+    var edgesMat = new THREE.LineBasicMaterial({ color: 0x30363d });
+    var edges = new THREE.LineSegments(edgesGeo, edgesMat);
+    edges.position.set(bx, 0.12, bz); edges.userData.isSetor=true;
+    scene.add(edges);
+
+    // Label da área
+    criarSprite(area.toUpperCase(), bx, 1.5, bz-bD/2+3, 0x58a6ff, 20);
+
+    // Carros desta área (filtrados)
+    var carrosArea = frotaFiltrada.filter(function(c){ return c.area===area; });
+    var subareas = ESTRUTURA[area];
+    var nSubs = subareas.length;
+    var sCols = Math.ceil(Math.sqrt(nSubs));
+    var sRows = Math.ceil(nSubs/sCols);
+    var sW = (bW-6)/sCols;
+    var sD2 = (bD-8)/sRows;
+
+    subareas.forEach(function(sub, si) {
+      var sc = si%sCols, sr = Math.floor(si/sCols);
+      var sx = bx - (bW-6)/2 + sc*sW + sW/2;
+      var sz = bz - (bD-8)/2 + sr*sD2 + sD2/2;
+
+      var carrosSub = carrosArea.filter(function(c){ return c.subarea===sub; });
+      if(carrosSub.length===0) return;
+
+      var cpr = Math.max(1, Math.floor((sW-1)/5.0));
+
+      carrosSub.forEach(function(carro, ci) {
+        var cc = ci%cpr, cr = Math.floor(ci/cpr);
+        var cx = sx - (Math.min(cpr,carrosSub.length)-1)*2.5/2 + cc*2.5;
+        var cz = sz - (Math.ceil(carrosSub.length/cpr)-1)*4.0/2 + cr*4.0;
+        var mesh = criarCarro(carro, cx, cz);
+        carMeshes.push({ mesh: mesh, carro: carro });
+      });
+    });
+  });
+
+  atualizarKpis();
+  renderizarListaTrocas();
+  updateCam();
+}
+
+// ============================================================
+// CARRO 3D MELHORADO
+// ============================================================
+function criarCarro(carro, x, z) {
+  var cv = corVisual(carro);
+  var corBase = CORES_HEX[cv] || CORES_HEX.ok;
+  var corEmit = CORES_EMIT[cv] || CORES_EMIT.ok;
+  var eInt = 0.18;
+
+  var g = new THREE.Group();
+
+  var matCorpo = new THREE.MeshPhongMaterial({ color: corBase, emissive: corEmit, emissiveIntensity: eInt, shininess: 80, specular: 0x444444 });
+  var matEscuro = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, shininess: 30 });
+  var matVidro = new THREE.MeshPhongMaterial({ color: 0x1a3040, transparent: true, opacity: 0.65, shininess: 150, specular: 0x88bbdd });
+  var matPara = new THREE.MeshPhongMaterial({ color: corBase, emissive: corEmit, emissiveIntensity: eInt*0.7, shininess: 40 });
+  var matAro  = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 120 });
+
+  // Chassi / corpo baixo
+  var chassi = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.28, 4.0), matCorpo);
+  chassi.position.y = 0.44; chassi.castShadow=true; g.add(chassi);
+
+  // Carroceria principal
+  var corpo = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.6, 3.6), matCorpo);
+  corpo.position.y = 0.78; corpo.castShadow=true; g.add(corpo);
+
+  // Cabine
+  var cab = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.58, 2.0), matCorpo);
+  cab.position.set(0, 1.28, -0.2); cab.castShadow=true; g.add(cab);
+
+  // Capô levemente elevado
+  var capot = new THREE.Mesh(new THREE.BoxGeometry(1.82, 0.12, 1.1), matCorpo);
+  capot.position.set(0, 1.10, 1.1); g.add(capot);
+
+  // Para-choque dianteiro
+  var pc1 = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.22, 0.18), matPara);
+  pc1.position.set(0, 0.41, 2.09); g.add(pc1);
+
+  // Para-choque traseiro
+  var pc2 = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.22, 0.18), matPara);
+  pc2.position.set(0, 0.41, -2.09); g.add(pc2);
+
+  // Vidro dianteiro
+  var vd = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.42, 0.06), matVidro);
+  vd.position.set(0, 1.28, 0.81); g.add(vd);
+
+  // Vidro traseiro
+  var vt = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.38, 0.06), matVidro);
+  vt.position.set(0, 1.28, -1.21); g.add(vt);
+
+  // Vidros laterais
+  [-0.865, 0.865].forEach(function(lx){
+    var vl = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.34, 1.6), matVidro);
+    vl.position.set(lx, 1.28, -0.2); g.add(vl);
+  });
+
+  // Retrovisores
+  [-1.0, 1.0].forEach(function(rx){
+    var ret = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.14), matCorpo);
+    ret.position.set(rx, 1.1, 0.5); g.add(ret);
+  });
+
+  // Rodas (4) com aro
+  var posRodas = [[-0.98,0.38,1.25],[0.98,0.38,1.25],[-0.98,0.38,-1.25],[0.98,0.38,-1.25]];
+  posRodas.forEach(function(p){
+    // pneu
+    var pneu = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.28, 14), matEscuro);
+    pneu.position.set(p[0],p[1],p[2]); pneu.rotation.z=Math.PI/2; pneu.castShadow=true;
+    g.add(pneu);
+    // aro
+    var aro = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.30, 10), matAro);
+    aro.position.set(p[0],p[1],p[2]); aro.rotation.z=Math.PI/2;
+    g.add(aro);
+    // cubo
+    var cubo = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.31, 8), new THREE.MeshPhongMaterial({color:0xcccccc,shininess:200}));
+    cubo.position.set(p[0],p[1],p[2]); cubo.rotation.z=Math.PI/2;
+    g.add(cubo);
+  });
+
+  // Faróis dianteiros
+  var matFar = new THREE.MeshPhongMaterial({ color: 0xffffff, emissive: 0xffffaa, emissiveIntensity: 0.5, shininess: 200 });
+  [-0.62, 0.62].forEach(function(fx){
+    var f = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.18, 0.06), matFar);
+    f.position.set(fx, 0.68, 2.06); g.add(f);
+  });
+
+  // Lanternas traseiras
+  var matLan = new THREE.MeshPhongMaterial({ color: 0xcc0000, emissive: 0x880000, emissiveIntensity: 0.4, shininess: 100 });
+  [-0.62, 0.62].forEach(function(fx){
+    var l = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.06), matLan);
+    l.position.set(fx, 0.68, -2.06); g.add(l);
+  });
+
+  // Faróis piscantes se pendente
+  if(cv === 'pendente' || cv === 'troca' || cv === 'kmcrit') {
+    var matAlerta = new THREE.MeshPhongMaterial({ color:0xff2222, emissive:0xff0000, emissiveIntensity:0.9 });
+    [-0.62, 0.62].forEach(function(fx){
+      var fa = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.18, 0.06), matAlerta);
+      fa.position.set(fx, 0.68, 2.06); fa.userData.pisca=true; fa.userData.fase=Math.random()*Math.PI*2;
+      g.add(fa);
+    });
+  }
+
+  // Plaquinha da placa (geométrica)
+  var plqGeo = new THREE.BoxGeometry(0.9, 0.22, 0.04);
+  var plqMat = new THREE.MeshPhongMaterial({ color: 0xeeeecc });
+  var plq = new THREE.Mesh(plqGeo, plqMat);
+  plq.position.set(0, 0.45, 2.10); g.add(plq);
+
+  g.position.set(x, 0, z);
+  g.userData.carro = carro;
+  g.userData.isCarro = true;
+  scene.add(g);
+  return g;
+}
+
+function criarSprite(txt, x, y, z, cor, sz) {
+  var cv = document.createElement('canvas'); cv.width=512; cv.height=80;
+  var ctx = cv.getContext('2d');
+  ctx.clearRect(0,0,512,80);
+  ctx.fillStyle='#'+cor.toString(16).padStart(6,'0');
+  ctx.font='bold '+(sz||16)+'px Segoe UI';
+  ctx.textAlign='center'; ctx.fillText(txt,256,54);
+  var sp = new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));
+  sp.position.set(x,y,z); sp.scale.set(14,2.2,1); sp.userData.isSetor=true;
+  scene.add(sp);
+}
+
+// ============================================================
+// CÂMERA
+// ============================================================
+function updateCam() {
+  camera.position.set(
+    camTarget.x + camRadius*Math.sin(camPhi)*Math.sin(camTheta),
+    camTarget.y + camRadius*Math.cos(camPhi),
+    camTarget.z + camRadius*Math.sin(camPhi)*Math.cos(camTheta)
+  );
+  camera.lookAt(camTarget);
+}
+function resetCamera(){ camTheta=0.7; camPhi=1.05; camRadius=130; camTarget.set(0,0,0); updateCam(); }
+function viewTop(){ camPhi=0.12; camRadius=170; updateCam(); }
+function zoomIn(){ camRadius=Math.max(15,camRadius-15); updateCam(); }
+function zoomOut(){ camRadius=Math.min(350,camRadius+15); updateCam(); }
+
+// Vetores auxiliares para pan
+function getPanVectors() {
+  // Direita da câmera (eixo X local)
+  var right = new THREE.Vector3();
+  right.crossVectors(camera.getWorldDirection(new THREE.Vector3()), camera.up).normalize();
+  // Cima da câmera projetada no plano XZ (pan horizontal/vertical sem subir)
+  var up = new THREE.Vector3();
+  up.crossVectors(right, camera.getWorldDirection(new THREE.Vector3())).normalize();
+  return { right: right, up: up };
+}
+
+// ============================================================
+// EVENTOS
+// ============================================================
+function onMouseDown(e) {
+  isDragging = false;
+  isPanning = (e.button === 2) || (e.button === 0 && e.ctrlKey);
+  prevMouse = { x: e.clientX, y: e.clientY };
+}
+
+function onMouseUp(e) {
+  isPanning = false;
+}
+
+function getIntersect(e) {
+  var wrap=document.getElementById('canvas-wrap'), rect=wrap.getBoundingClientRect();
+  mouse.x=((e.clientX-rect.left)/rect.width)*2-1;
+  mouse.y=-((e.clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(mouse,camera);
+  var meshes=[];
+  carMeshes.forEach(function(cm){ cm.mesh.traverse(function(c){ if(c.isMesh) meshes.push(c); }); });
+  var hits=raycaster.intersectObjects(meshes);
+  if(!hits.length) return null;
+  var obj=hits[0].object;
+  while(obj.parent && !obj.userData.isCarro) obj=obj.parent;
+  return obj.userData.isCarro ? obj : null;
+}
+
+function onMove(e) {
+  var dx = e.clientX - prevMouse.x;
+  var dy = e.clientY - prevMouse.y;
+
+  if(e.buttons > 0 && (Math.abs(dx) > 1 || Math.abs(dy) > 1)) isDragging = true;
+
+  // PAN — botão direito ou Ctrl+esquerdo
+  if(isPanning && e.buttons > 0) {
+    var panSpeed = camRadius * 0.0012;
+    var vecs = getPanVectors();
+    camTarget.addScaledVector(vecs.right, -dx * panSpeed);
+    camTarget.addScaledVector(vecs.up,     dy * panSpeed);
+    prevMouse = { x: e.clientX, y: e.clientY };
+    updateCam();
+  }
+  // ORBIT — botão esquerdo sem Ctrl
+  else if(e.buttons === 1 && !e.ctrlKey) {
+    camTheta -= dx*0.007;
+    camPhi = Math.max(0.05, Math.min(Math.PI/2-0.01, camPhi + dy*0.007));
+    prevMouse = { x: e.clientX, y: e.clientY };
+    updateCam();
+  }
+  var g=getIntersect(e);
+  var tt=document.getElementById('tooltip');
+  var wrap=document.getElementById('canvas-wrap'), rect=wrap.getBoundingClientRect();
+  if(g){
+    var c=g.userData.carro;
+    var pVenc=Object.keys(c.pendencias).filter(function(k){return c.pendencias[k]==='vencido';});
+    var pctStr=Math.round(c.pct_km*100)+'%';
+    var corPct=c.pct_km>=1?'#f85149':c.pct_km>=0.9?'#d29922':'#3fb950';
+    var trocaStr=c.dias_troca<=0?'<span style="color:#f85149">VENCIDA</span>':'em '+c.dias_troca+' dias';
+    tt.style.display='block';
+    tt.style.left=(e.clientX-rect.left+14)+'px';
+    tt.style.top=(e.clientY-rect.top-10)+'px';
+    tt.innerHTML='<div class="tt-title">'+c.placa+'</div>'+
+      '<div class="tt-row">Modelo: <span>'+c.modelo+'</span></div>'+
+      '<div class="tt-row">Área: <span>'+c.area+' › '+c.subarea+'</span></div>'+
+      '<div class="tt-row">Unidade: <span>'+c.unidade+'</span></div>'+
+      '<div class="tt-row">KM usado: <span style="color:'+corPct+'">'+c.km_rodado.toLocaleString('pt-BR')+' / '+c.km_contratado.toLocaleString('pt-BR')+' ('+pctStr+')</span></div>'+
+      '<div class="tt-row">Troca: <span>'+trocaStr+'</span></div>'+
+      (pVenc.length?'<div class="tt-row" style="color:#f85149">⚠ '+pVenc.join(', ')+'</div>':'');
+    wrap.style.cursor='pointer';
+  } else {
+    tt.style.display='none'; wrap.style.cursor='grab';
+  }
+}
+
+function onClick(e) {
+  if(isDragging){ isDragging=false; return; }
+  var g=getIntersect(e);
+  if(g){
+    if(selectedGrupo) resetHL(selectedGrupo);
+    selectedGrupo=g; ativarHL(g);
+    mostrarDetalhe(g.userData.carro);
+    mudarTab('detalhe');
+  }
+}
+
+function ativarHL(g) {
+  g.traverse(function(c){ if(c.isMesh&&c.material){ c.userData._oe=c.material.emissive?c.material.emissive.getHex():0; c.userData._oi=c.material.emissiveIntensity||0; if(c.material.emissive) c.material.emissive.setHex(0xffffff); c.material.emissiveIntensity=0.5; } });
+}
+function resetHL(g) {
+  g.traverse(function(c){ if(c.isMesh&&c.material&&c.userData._oe!==undefined){ if(c.material.emissive) c.material.emissive.setHex(c.userData._oe); c.material.emissiveIntensity=c.userData._oi||0.18; } });
+}
+
+// ============================================================
+// PAINEL DETALHE
+// ============================================================
+function mostrarDetalhe(c) {
+  var stMap={ ok:'Ok', avencer:'A Vencer', pendente:'Pendente', disponivel:'Disponível' };
+  var stCls={ ok:'badge-ok', avencer:'badge-warn', pendente:'badge-crit', disponivel:'badge-disp' };
+  var pct=Math.min(c.pct_km*100,100);
+  var corBar=c.pct_km>=1?'#f85149':c.pct_km>=0.9?'#d29922':'#3fb950';
+  var saldoStr=(c.km_saldo>=0?'+':'')+c.km_saldo.toLocaleString('pt-BR')+' km';
+  var trocaStr=c.dias_troca<=0?'<span style="color:#f85149">VENCIDA</span>':c.dias_troca<=30?'<span style="color:#a371f7">'+c.dias_troca+' dias</span>':'<span>'+c.dias_troca+' dias</span>';
+  var trocaBadge=c.dias_troca<=30?'<span class="badge badge-troca">Troca Próxima</span>':'';
+
+  var pendHtml='<div class="pend-list">';
+  Object.keys(c.pendencias).forEach(function(t){
+    var st=c.pendencias[t];
+    var cor=st==='vencido'?'#f85149':st==='avencer'?'#d29922':'#3fb950';
+    var label=st==='vencido'?'Vencido':st==='avencer'?'A Vencer':'Ok';
+    pendHtml+='<div class="pend-item"><div style="display:flex;align-items:center;"><div class="pend-dot" style="background:'+cor+'"></div>'+t+'</div><span style="color:'+cor+'">'+label+'</span></div>';
+  });
+  pendHtml+='</div>';
+
+  document.getElementById('detail-content').innerHTML=
+    '<div class="detail-row"><span class="detail-key">Placa</span><span class="detail-val"><strong style="color:#58a6ff">'+c.placa+'</strong></span></div>'+
+    '<div class="detail-row"><span class="detail-key">Modelo</span><span class="detail-val">'+c.modelo+'</span></div>'+
+    '<div class="detail-row"><span class="detail-key">Ano</span><span class="detail-val">'+c.ano+'</span></div>'+
+    '<div class="detail-row"><span class="detail-key">Unidade</span><span class="detail-val">'+c.unidade+'</span></div>'+
+    '<div class="detail-row"><span class="detail-key">Área</span><span class="detail-val">'+c.area+'</span></div>'+
+    '<div class="detail-row"><span class="detail-key">Subárea</span><span class="detail-val">'+c.subarea+'</span></div>'+
+    '<div class="detail-row"><span class="detail-key">Locadora</span><span class="detail-val">'+c.locadora+'</span></div>'+
+    '<div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="badge '+stCls[c.status]+'">'+stMap[c.status]+'</span> '+trocaBadge+'</span></div>'+
+    '<div class="detail-row"><span class="detail-key">Troca em</span><span class="detail-val">'+trocaStr+'</span></div>'+
+    '<div style="margin-top:8px;font-size:8px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px;">Contrato KM</div>'+
+    '<div class="km-bar-wrap">'+
+      '<div class="km-bar-label"><span>'+c.km_rodado.toLocaleString('pt-BR')+' km rodados</span><span style="color:'+corBar+'">'+Math.round(c.pct_km*100)+'%</span></div>'+
+      '<div class="km-bar-bg"><div class="km-bar-fill" style="width:'+pct+'%;background:'+corBar+'"></div></div>'+
+      '<div class="km-bar-label" style="margin-top:3px;"><span>Contrato: '+c.km_contratado.toLocaleString('pt-BR')+' km</span><span style="color:'+(c.km_saldo>=0?'#3fb950':'#f85149')+'">Saldo: '+saldoStr+'</span></div>'+
+    '</div>'+
+    '<div style="margin-top:8px;font-size:8px;color:#6e7681;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Pendências</div>'+
+    pendHtml;
+}
+
+// ============================================================
+// LISTA TROCAS
+// ============================================================
+function renderizarListaTrocas() {
+  var lista = frotaFiltrada
+    .filter(function(c){ return c.dias_troca <= 60; })
+    .sort(function(a,b){ return a.dias_troca - b.dias_troca; });
+
+  var el = document.getElementById('lista-trocas');
+  if(!lista.length){ el.innerHTML='<div style="color:#6e7681;font-size:11px;padding:10px 0;">Nenhuma troca prevista em 60 dias.</div>'; return; }
+
+  el.innerHTML = lista.map(function(c){
+    var diasStr = c.dias_troca <= 0 ? '<span class="t-dias" style="color:#f85149">VENCIDA</span>' :
+                  c.dias_troca <= 30 ? '<span class="t-dias" style="color:#a371f7">'+c.dias_troca+' dias</span>' :
+                  '<span class="t-dias" style="color:#d29922">'+c.dias_troca+' dias</span>';
+    return '<div class="troca-item">'+
+      '<div class="t-placa">'+c.placa+' — '+diasStr+'</div>'+
+      '<div class="t-info">'+c.modelo+' · '+c.area+' · '+c.locadora+'</div>'+
+      '<div class="t-info">KM contrato: '+Math.round(c.pct_km*100)+'% usado</div>'+
+    '</div>';
+  }).join('');
+}
+
+// ============================================================
+// KPIs
+// ============================================================
+function atualizarKpis() {
+  var total=frotaFiltrada.length;
+  var ok=0,warn=0,crit=0,troca=0,km90=0,km100=0;
+  frotaFiltrada.forEach(function(c){
+    if(c.status==='ok') ok++;
+    if(c.status==='avencer') warn++;
+    if(c.status==='pendente') crit++;
+    if(c.dias_troca<=30) troca++;
+    if(c.pct_km>=0.9&&c.pct_km<1.0) km90++;
+    if(c.pct_km>=1.0) km100++;
+  });
+  document.getElementById('kpi-total').textContent=total;
+  document.getElementById('kpi-ok').textContent=ok;
+  document.getElementById('kpi-warn').textContent=warn;
+  document.getElementById('kpi-crit').textContent=crit;
+  document.getElementById('kpi-troca').textContent=troca;
+  document.getElementById('kpi-km90').textContent=km90;
+  document.getElementById('kpi-km100').textContent=km100;
+}
+
+// ============================================================
+// FILTROS
+// ============================================================
+function aplicarFiltros() {
+  var uni=document.getElementById('f-unidade').value;
+  var area=document.getElementById('f-area').value;
+  var sub=document.getElementById('f-subarea').value;
+  var loc=document.getElementById('f-locadora').value;
+  var mod=document.getElementById('f-modelo').value;
+  var st=document.getElementById('f-status').value;
+  var km=document.getElementById('f-km').value;
+  var troca=document.getElementById('f-troca').value;
+  var busca=document.getElementById('f-busca').value.toUpperCase();
+
+  frotaFiltrada=FROTA.filter(function(c){
+    if(uni&&c.unidade!==uni) return false;
+    if(area&&c.area!==area) return false;
+    if(sub&&c.subarea!==sub) return false;
+    if(loc&&c.locadora!==loc) return false;
+    if(mod&&c.modelo!==mod) return false;
+    if(st&&c.status!==st) return false;
+    if(km==='90'&&c.pct_km<0.9) return false;
+    if(km==='100'&&c.pct_km<1.0) return false;
+    if(troca==='30'&&c.dias_troca>30) return false;
+    if(troca==='60'&&c.dias_troca>60) return false;
+    if(busca&&c.placa.indexOf(busca)<0) return false;
+    return true;
+  });
+
+  atualizarKpis();
+  construirGaragem();
+  renderizarListaTrocas();
+}
+
+// ============================================================
+// TABS
+// ============================================================
+function mudarTab(nome) {
+  document.querySelectorAll('.tab').forEach(function(t,i){ t.classList.remove('active'); });
+  document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  var nomes=['visao','filtros','trocas','detalhe'];
+  var idx=nomes.indexOf(nome);
+  if(idx>=0){ document.querySelectorAll('.tab')[idx].classList.add('active'); document.getElementById('tab-'+nome).classList.add('active'); }
+}
+
+// ============================================================
+// ANIMAÇÃO
+// ============================================================
+function animate() {
+  requestAnimationFrame(animate);
+  var t=clock.getElapsedTime();
+  carMeshes.forEach(function(cm){
+    cm.mesh.traverse(function(c){
+      if(c.userData.pisca&&c.material){
+        c.material.emissiveIntensity=0.3+0.7*Math.abs(Math.sin(t*2.5+c.userData.fase));
+      }
+    });
+  });
+  renderer.render(scene,camera);
+}
+
+// ============================================================
+// EXPOR FUNÇÕES
+// ============================================================
+window.aplicarFiltros = aplicarFiltros;
+window.onAreaChange = onAreaChange;
+window.limparFiltros = limparFiltros;
+window.mudarTab = mudarTab;
+window.resetCamera = resetCamera;
+window.viewTop = viewTop;
+window.zoomIn = zoomIn;
+window.zoomOut = zoomOut;
+
+initScene();
+</script>
+</body>
+</html>
